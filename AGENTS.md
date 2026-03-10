@@ -1,0 +1,6 @@
+- 실거래 코드는 paper trading 모드가 기본값이다.
+- 주문 관련 변경은 반드시 risk 테스트를 먼저 통과해야 한다.
+- 손실한도, 주문수량 제한, circuit breaker는 제거 금지.
+- 브로커 API 호출은 execution 계층에만 둔다.
+- 새 전략은 반드시 backtest와 simulation 리포트를 포함한다.
+- PR에는 테스트 결과와 위험 영향 요약을 포함한다.
