@@ -95,9 +95,9 @@ class ETFPriceCollector:
         observed_at = self._normalize_datetime(current_time or self.clock())
         window_start, window_end = self._collection_window(observed_at)
 
-        if not self.is_market_session(observed_at):
+        if not self._is_collectible_window(window_start, window_end):
             LOGGER.info(
-                "Skipping %s collection outside market session at %s",
+                "Skipping %s collection outside collectible market window at %s",
                 symbol,
                 observed_at.astimezone(self.market_timezone).isoformat(),
             )
@@ -193,6 +193,19 @@ class ETFPriceCollector:
         market_time = current_time.astimezone(self.market_timezone)
         window_end = market_time.replace(second=0, microsecond=0)
         return window_end - ONE_MINUTE, window_end
+
+    def _is_collectible_window(self, window_start: datetime, window_end: datetime) -> bool:
+        localized_start = self._normalize_datetime(window_start).astimezone(self.market_timezone)
+        localized_end = self._normalize_datetime(window_end).astimezone(self.market_timezone)
+
+        if localized_start.date() != localized_end.date():
+            return False
+        if localized_start.weekday() >= 5:
+            return False
+
+        start_time = localized_start.timetz().replace(tzinfo=None)
+        end_time = localized_end.timetz().replace(tzinfo=None)
+        return MARKET_OPEN <= start_time and end_time <= MARKET_CLOSE
 
     def _parse_payload(
         self,

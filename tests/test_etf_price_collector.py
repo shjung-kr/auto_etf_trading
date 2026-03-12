@@ -96,7 +96,47 @@ class ETFPriceCollectorTests(unittest.TestCase):
         self.assertEqual(result.status, "market_closed")
         self.assertEqual(result.attempts, 0)
         self.assertEqual(provider.calls, [])
-        self.assertIn("Skipping SPY collection outside market session", "\n".join(captured.output))
+        self.assertIn(
+            "Skipping SPY collection outside collectible market window",
+            "\n".join(captured.output),
+        )
+
+    def test_skips_collection_before_first_complete_market_minute(self) -> None:
+        provider = RecordingProvider([])
+        collector = ETFPriceCollector(provider)
+
+        with self.assertLogs(LOGGER_NAME, level="INFO") as captured:
+            result = collector.collect_latest(
+                "SPY",
+                current_time=eastern_datetime(2026, 3, 12, 9, 30, 20),
+            )
+
+        self.assertEqual(result.status, "market_closed")
+        self.assertEqual(result.records, ())
+        self.assertEqual(provider.calls, [])
+        self.assertIn(
+            "Skipping SPY collection outside collectible market window",
+            "\n".join(captured.output),
+        )
+
+    def test_collects_final_bar_at_market_close_boundary(self) -> None:
+        provider = RecordingProvider(
+            [price_bar(eastern_datetime(2026, 3, 12, 15, 59), close=530.25)]
+        )
+        collector = ETFPriceCollector(provider)
+
+        with self.assertLogs(LOGGER_NAME, level="INFO") as captured:
+            result = collector.collect_latest(
+                "SPY",
+                current_time=eastern_datetime(2026, 3, 12, 16, 0, 20),
+            )
+
+        self.assertEqual(result.status, "collected")
+        self.assertEqual(result.attempts, 1)
+        self.assertEqual(provider.calls[0]["start"], eastern_datetime(2026, 3, 12, 15, 59))
+        self.assertEqual(provider.calls[0]["end"], eastern_datetime(2026, 3, 12, 16, 0))
+        self.assertAlmostEqual(result.records[0].close, 530.25)
+        self.assertIn("Collected 1 1-minute bars for SPY", "\n".join(captured.output))
 
     def test_retries_transient_failures_until_success(self) -> None:
         provider = RecordingProvider(
